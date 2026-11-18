@@ -1,10 +1,10 @@
 import { Stack } from 'expo-router';
-import { DemoProvider } from '@/context/DemoContext';
+import { AppProvider } from '@/context/AppContext';
 
 export default function RootLayout() {
   return (
-    <DemoProvider><Stack screenOptions={{ headerShown: false }}>
+    <AppProvider><Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" options={{ title: 'Login | Presensi Praktikum' }} />
-    </Stack></DemoProvider>
+    </Stack></AppProvider>
   );
 }

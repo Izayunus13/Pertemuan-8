@@ -3,10 +3,11 @@ import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, View }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router, usePathname } from 'expo-router';
-import { useDemo } from '@/context/DemoContext';
+import { useApp } from '@/context/AppContext';
 import { ds } from '@/styles/dashboard';
 import { glassTheme } from '@/styles/theme';
 import type { PracticalSession } from '@/types';
+import { useEmulators } from '@/services/firebase';
 import { SessionStatusBadge } from '@/components/SessionStatusBadge';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -24,7 +25,7 @@ export function Button({ label, onPress, disabled = false, variant = 'primary' }
 }
 
 function Sidebar({ visible, close }: { visible: boolean; close: () => void }) {
-  const { state, dispatch } = useDemo();
+  const { state, profile, dispatch, busy } = useApp();
   const pathname = usePathname();
   const assistant = state.role === 'Asisten';
   useEffect(() => {
@@ -33,18 +34,19 @@ function Sidebar({ visible, close }: { visible: boolean; close: () => void }) {
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
   }, [visible, close]);
-  const items: { label: string; href: '/home' | '/schedule' | '/history' | '/role'; icon: IconName }[] = [
+  const items: { label: string; href: '/home' | '/schedule' | '/history' | '/role' | '/permissions'; icon: IconName }[] = [
     { label: 'Dashboard', href: '/home', icon: 'grid-outline' },
     { label: assistant ? 'Kelola sesi' : 'Jadwal & presensi', href: '/schedule', icon: 'calendar-outline' },
     { label: assistant ? 'Rekap kehadiran' : 'Riwayat kehadiran', href: '/history', icon: 'bar-chart-outline' },
-    { label: 'Ganti peran', href: '/role', icon: 'swap-horizontal-outline' },
+    { label: assistant ? 'Periksa izin' : 'Pengajuan izin', href: '/permissions', icon: 'document-text-outline' },
+    { label: 'Akun saya', href: '/role', icon: 'person-outline' },
   ];
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
     <View style={ds.menuOverlay}>
       <Pressable accessibilityRole="button" accessibilityLabel="Tutup menu" onPress={close} style={ds.scrim} />
       <SafeAreaView style={ds.drawer}>
         <View style={ds.drawerTop}><Text style={ds.brandText}>PraktiKu</Text><Pressable accessibilityRole="button" accessibilityLabel="Tutup sidebar" onPress={close} style={ds.iconButton}><Icon name="close" /></Pressable></View>
-        <View style={ds.row}><View style={ds.avatar}><Icon name="person-outline" /></View><View style={ds.grow}><Text numberOfLines={1} style={ds.cardTitle}>{state.username}</Text><Text style={ds.small}>{state.role ?? 'Pilih peran'}</Text></View></View>
+        <View style={ds.row}><View style={ds.avatar}><Icon name="person-outline" /></View><View style={ds.grow}><Text numberOfLines={1} style={ds.cardTitle}>{profile?.name}</Text><Text style={ds.small}>{state.role}</Text></View></View>
         <View style={ds.divider} />
         <ScrollView contentContainerStyle={{ gap: 8 }}>
           {items.filter((item) => state.role || item.href === '/role').map((item) => <Pressable key={item.href} accessibilityRole="button" accessibilityState={{ selected: pathname === item.href }}
@@ -52,18 +54,18 @@ function Sidebar({ visible, close }: { visible: boolean; close: () => void }) {
             <Icon name={item.icon} color={pathname === item.href ? glassTheme.text : glassTheme.icon} /><Text style={[ds.menuText, pathname === item.href && ds.menuActiveText]}>{item.label}</Text>
           </Pressable>)}
         </ScrollView>
-        <Button label="Keluar" variant="secondary" onPress={() => { close(); dispatch({ type: 'logout' }); router.replace('/'); }} />
+        <Button label="Keluar" disabled={busy} variant="secondary" onPress={async () => { if (await dispatch({ type: 'logout' })) { close(); router.replace('/'); } }} />
       </SafeAreaView>
     </View>
   </Modal>;
 }
 
-export function Screen({ title, subtitle, children, requireRole = true }: PropsWithChildren<{ title: string; subtitle?: string; requireRole?: boolean }>) {
-  const { state, ready, storageError } = useDemo();
+export function Screen({ title, subtitle, children }: PropsWithChildren<{ title: string; subtitle?: string }>) {
+  const { state, ready, loading, busy, error, offline, cached, retry } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   if (!ready) return <View style={[ds.page, { justifyContent: 'center' }]}><ActivityIndicator color={glassTheme.text} accessibilityLabel="Memuat data" /></View>;
   if (!state.username) return <Redirect href="/" />;
-  if (requireRole && !state.role) return <Redirect href="/role" />;
+  if (!state.role) return <Redirect href="/" />;
   return <SafeAreaView style={ds.page}>
     <BackgroundDecor />
     <View style={ds.header}><View style={ds.headerInner}>
@@ -74,8 +76,11 @@ export function Screen({ title, subtitle, children, requireRole = true }: PropsW
     <ScrollView contentContainerStyle={ds.content}>
       <View style={ds.column}>
         <View><Text accessibilityRole="header" style={ds.title}>{title}</Text>{subtitle ? <Text style={ds.subtitle}>{subtitle}</Text> : null}</View>
-        {storageError ? <View style={ds.notice}><Text style={ds.noticeText}>Penyimpanan browser tidak tersedia. Perubahan hanya tersimpan selama aplikasi terbuka.</Text></View> : null}
-        {children}
+        {useEmulators && <Text style={ds.noticeText}>Mode emulator lokal — data ini terpisah dari Firebase cloud.</Text>}
+        {(offline || cached) && <View style={ds.notice}><Text style={ds.noticeText}>{offline ? 'Koneksi terputus. Data mungkin belum terbaru. Sambungkan internet sebelum menyimpan perubahan.' : 'Menghubungkan ke server. Data yang tampil mungkin belum terbaru.'}</Text></View>}
+        {error ? <View style={ds.notice}><Text accessibilityRole="alert" style={ds.noticeText}>{error}</Text><Button label="Coba sambungkan ulang" disabled={busy} variant="secondary" onPress={retry} /></View> : null}
+        {busy && <Text accessibilityLiveRegion="polite" style={ds.noticeText}>Memproses… Tunggu konfirmasi server sebelum meninggalkan halaman.</Text>}
+        {loading ? <ActivityIndicator color="#FFFFFF" accessibilityLabel="Memuat data praktikum" /> : children}
         <Text style={ds.small}>PraktiKu / Presensi praktikum</Text>
       </View>
     </ScrollView>

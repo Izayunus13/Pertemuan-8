@@ -1,13 +1,13 @@
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { Button, Card, EmptyState, Icon, Screen, SessionCard } from '@/components/UI';
-import { useDemo } from '@/context/DemoContext';
+import { useApp } from '@/context/AppContext';
 import { ds } from '@/styles/dashboard';
 
 export default function HomeScreen() {
-  const { state } = useDemo();
+  const { state, profile } = useApp();
   const assistant = state.role === 'Asisten';
-  const live = state.sessions.filter((session) => session.status === 'Berlangsung');
+  const live = state.sessions.filter((session) => !session.deleted && session.status === 'Berlangsung');
   const mine = state.attendance.filter((record) => record.studentId === state.username);
   const completed = state.sessions.filter((session) => session.status === 'Selesai').length;
   const stats = [
@@ -19,7 +19,7 @@ export default function HomeScreen() {
   return <Screen title="Dashboard" subtitle="Semua aktivitas praktikum, dalam satu tempat.">
     <View style={ds.hero}>
       <Text style={ds.eyebrow}>RUANG {assistant ? 'ASISTEN' : 'PRAKTIKAN'}</Text>
-      <Text style={ds.heroTitle}>Halo, {state.username}!</Text>
+      <Text style={ds.heroTitle}>Halo, {profile?.name}!</Text>
       <Text style={ds.heroText}>{assistant ? 'Siapkan sesi, pantau peserta yang hadir, dan kelola kegiatan praktikum dengan lebih teratur.' : 'Siap untuk praktikum? Cek jadwal, catat kehadiranmu, dan pantau perjalanan belajarmu di sini.'}</Text>
       <View style={ds.wrap}><Button label={assistant ? 'Kelola sesi praktikum' : 'Lihat jadwal praktikum'} onPress={() => router.push('/schedule')} /><StatusBadgeNote count={live.length} /></View>
     </View>

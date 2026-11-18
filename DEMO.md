@@ -1,4 +1,6 @@
-# Demo presensi praktikum
+# Arsip demo lokal Sprint 1
+
+> Dokumen ini mendeskripsikan versi lama. Aplikasi aktif sekarang memakai Firebase dan tidak menerima password dummy atau pemilihan peran. Untuk menjalankan Sprint 2, ikuti [FIREBASE_SETUP.md](./FIREBASE_SETUP.md).
 
 Jalankan `npm run web`. Login menggunakan NIM apa saja yang tidak kosong dan kata sandi `12345678`.
 

@@ -1,3 +1,9 @@
+# PraktiKu Sprint 2
+
+Panduan aplikasi terbaru: [FIREBASE_SETUP.md](./FIREBASE_SETUP.md). Ringkasan implementasi: [README_SPRINT2.md](./README_SPRINT2.md).
+
+---
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).

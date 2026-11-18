@@ -6,6 +6,8 @@ node_modules/
 # Expo
 .expo/
 dist/
+dist-sprint2/
+dist-android-sprint2/
 web-build/
 expo-env.d.ts
 
@@ -32,6 +34,13 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+functions/.env*
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*-debug.log
+.firebase/
 
 # typescript
 *.tsbuildinfo

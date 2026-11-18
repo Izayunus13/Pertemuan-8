@@ -2,12 +2,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { SessionStatusBadge } from '@/components/SessionStatusBadge';
 import { Button, Card, EmptyState, Screen, StatusBadge } from '@/components/UI';
-import { useDemo } from '@/context/DemoContext';
+import { useApp } from '@/context/AppContext';
 import { ds } from '@/styles/dashboard';
 
 export default function AttendanceRecapScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
-  const { state } = useDemo();
+  const { state, permissions } = useApp();
   const selectedId = Array.isArray(id) ? id[0] : id;
   const sessions = state.sessions.filter((session) => !selectedId || session.id === selectedId);
   const sessionIds = new Set(sessions.map((session) => session.id));
@@ -55,6 +55,7 @@ export default function AttendanceRecapScreen() {
           </View>
           {sessions.length ? sessions.map((session) => {
             const participants = records.filter((record) => record.sessionId === session.id);
+            const missing = session.participantIds.filter((uid) => !participants.some((record) => record.studentId === uid));
             return (
               <Card key={session.id}>
                 <Text style={ds.cardTitle}>{session.practicalName}</Text>
@@ -68,7 +69,7 @@ export default function AttendanceRecapScreen() {
                     <View style={ds.wrap}>
                       <View style={ds.grow}>
                         <Text style={ds.cardTitle}>{record.studentName}</Text>
-                        <Text style={ds.small}>NIM {record.studentId}</Text>
+                        <Text style={ds.small}>NIM {record.studentNumber}</Text>
                       </View>
                       <StatusBadge status="Hadir" />
                     </View>
@@ -77,13 +78,22 @@ export default function AttendanceRecapScreen() {
                 )) : (
                   <Text style={ds.subtitle}>Belum ada peserta yang melakukan presensi pada sesi ini.</Text>
                 )}
+                <Text style={ds.sectionTitle}>Peserta lainnya ({missing.length})</Text>
+                {missing.map((uid) => {
+                  const permission = permissions.find((p) => p.sessionId === session.id && p.studentId === uid);
+                  return <View key={uid} style={ds.column}>
+                    <Text selectable style={ds.small}>{permission ? `${permission.studentName} / ${permission.studentNumber}` : `UID: ${uid}`}</Text>
+                    <StatusBadge status={permission?.status === 'Diterima' ? 'Izin diterima' : permission ? `Izin: ${permission.status}` : session.status === 'Selesai' ? 'Tidak presensi' : 'Belum presensi'} />
+                  </View>;
+                })}
+                <Text style={ds.small}>{participants.length} hadir dari {session.participantIds.length} peserta terdaftar.</Text>
                 <Button label="Lihat detail sesi" variant="secondary" onPress={() => router.push({
                   pathname: '/detail', params: { id: session.id },
                 })} />
               </Card>
             );
           }) : <EmptyState message={selectedId ? 'Sesi praktikum tidak ditemukan. Pilih sesi lain atau semua sesi.' : 'Belum ada sesi praktikum untuk direkap.'} />}
-          <Text style={ds.small}>Rekap menghitung presensi yang tercatat. Daftar peserta terdaftar belum tersedia untuk menghitung jumlah peserta absen atau persentase kehadiran.</Text>
+          <Text style={ds.small}>Rekap menampilkan peserta terdaftar, presensi, dan status pengajuan izin. Identitas peserta tanpa catatan ditampilkan sebagai UID.</Text>
           <Button label="Kembali ke kelola sesi" variant="secondary" onPress={() => router.replace('/schedule')} />
         </>
       )}

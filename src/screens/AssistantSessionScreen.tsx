@@ -3,17 +3,20 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SessionStatusBadge } from '@/components/SessionStatusBadge';
 import { Button, Card, EmptyState, Icon, Screen } from '@/components/UI';
-import { useDemo } from '@/context/DemoContext';
+import { useApp } from '@/context/AppContext';
 import { ds } from '@/styles/dashboard';
 import type { SessionStatus } from '@/types';
+import { SessionEditor } from '@/components/SessionEditor';
 
 const filters: ('Semua' | SessionStatus)[] = ['Semua', 'Belum Dibuka', 'Berlangsung', 'Selesai'];
 
 export default function AssistantSessionScreen() {
-  const { state, dispatch } = useDemo();
+  const { state, dispatch, deleteSession, busy, offline } = useApp();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [filter, setFilter] = useState<(typeof filters)[number]>('Semua');
   const [closingSessionId, setClosingSessionId] = useState<string | null>(null);
-  const sessions = state.sessions.filter((session) => filter === 'Semua' || session.status === filter);
+  const sessions = state.sessions.filter((session) => !session.deleted && (filter === 'Semua' || session.status === filter));
 
   return (
     <Screen title="Kelola sesi" subtitle="Buka presensi, pantau peserta, dan tutup sesi praktikum.">
@@ -21,6 +24,8 @@ export default function AssistantSessionScreen() {
         <EmptyState message="Kontrol sesi hanya tersedia untuk asisten." />
       ) : (
         <>
+          <Button label="Tambah sesi praktikum" disabled={busy || offline} onPress={() => setEditing('new')} />
+          {editing && <SessionEditor key={editing} session={state.sessions.find((s) => s.id === editing)} onClose={() => setEditing(null)} />}
           <View style={ds.stats}>
             <View style={ds.stat}>
               <Text style={ds.statNumber}>{state.sessions.length}</Text>
@@ -61,9 +66,9 @@ export default function AssistantSessionScreen() {
                 {session.status === 'Belum Dibuka' && (
                   <>
                     <Text style={ds.small}>Buka sesi agar praktikan dapat mencatat kehadiran.</Text>
-                    <Button label="Buka sesi presensi" onPress={() => {
-                      dispatch({ type: 'open', sessionId: session.id });
-                      setClosingSessionId(null);
+                    <Button label="Ubah sesi" variant="secondary" disabled={busy || offline} onPress={() => setEditing(session.id)} />
+                    <Button label="Buka sesi presensi" disabled={busy || offline} onPress={async () => {
+                      if (await dispatch({ type: 'open', sessionId: session.id })) setClosingSessionId(null);
                     }} />
                   </>
                 )}
@@ -72,9 +77,8 @@ export default function AssistantSessionScreen() {
                     <View style={ds.notice} accessibilityLiveRegion="polite">
                       <Text style={ds.noticeText}>Tutup sesi {session.practicalName}? Praktikan tidak dapat presensi lagi dan sesi tidak dapat dibuka kembali.</Text>
                       <View style={ds.column}>
-                        <Button label="Ya, tutup sesi" variant="danger" onPress={() => {
-                          dispatch({ type: 'close', sessionId: session.id });
-                          setClosingSessionId(null);
+                        <Button label="Ya, tutup sesi" disabled={busy || offline} variant="danger" onPress={async () => {
+                          if (await dispatch({ type: 'close', sessionId: session.id })) setClosingSessionId(null);
                         }} />
                         <Button label="Batal" variant="secondary" onPress={() => setClosingSessionId(null)} />
                       </View>
@@ -84,6 +88,11 @@ export default function AssistantSessionScreen() {
                   )
                 )}
                 {session.status === 'Selesai' && <Text style={ds.small}>Sesi sudah ditutup. Catatan kehadiran tetap tersedia di rekap.</Text>}
+                {session.status !== 'Berlangsung' && (deleting === session.id ? <View style={ds.column}>
+                  <Text style={ds.noticeText}>Hapus sesi dari jadwal? Riwayat presensi dan izin tetap disimpan untuk audit.</Text>
+                  <Button label="Ya, hapus sesi" variant="danger" disabled={busy || offline} onPress={async () => { if (await deleteSession(session.id)) { setDeleting(null); setEditing(null); } }} />
+                  <Button label="Batal hapus" variant="secondary" disabled={busy} onPress={() => setDeleting(null)} />
+                </View> : <Button label="Hapus sesi" variant="danger" disabled={busy || offline} onPress={() => setDeleting(session.id)} />)}
                 <Button label="Lihat rekap kehadiran" variant="secondary" onPress={() => router.push({
                   pathname: '/history', params: { id: session.id },
                 })} />

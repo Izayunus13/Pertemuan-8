@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, EmptyState, StatusBadge } from '@/components/UI';
-import { useDemo } from '@/context/DemoContext';
+import { useApp } from '@/context/AppContext';
 import { ds } from '@/styles/dashboard';
 import { glassTheme } from '@/styles/theme';
-import { formatAttendanceTime, validateAttendance } from '@/utils/attendanceValidation';
+import { validateAttendance } from '@/utils/attendanceValidation';
 
 // Embedded in DetailScreen so the existing route and session card stay shared.
 export default function StudentAttendanceScreen({ sessionId }: { sessionId: string }) {
-  const { state, dispatch } = useDemo();
+  const { state, profile, dispatch, busy, offline, error } = useApp();
   const [confirming, setConfirming] = useState(false);
   const session = state.sessions.find((item) => item.id === sessionId);
   const mine = state.attendance.find((record) => record.sessionId === sessionId && record.studentId === state.username);
@@ -16,23 +16,22 @@ export default function StudentAttendanceScreen({ sessionId }: { sessionId: stri
   if (!session) return <EmptyState message="Sesi praktikum tidak ditemukan." />;
 
   const close = () => setConfirming(false);
-  const confirm = () => {
+  const confirm = async () => {
     if (!confirming || !validation.valid) return;
-    dispatch({ type: 'attend', sessionId, time: formatAttendanceTime(new Date()) });
-    close();
+    if (await dispatch({ type: 'attend', sessionId })) close();
   };
 
   return <Card>
     <Text style={ds.cardTitle}>Presensi saya</Text>
-    <Text style={ds.small}>NIM {state.username}</Text>
+    <Text style={ds.small}>NIM {profile?.nim}</Text>
     {mine ? <View style={ds.success} accessibilityLiveRegion="polite">
       <Text style={ds.successText}>Kehadiran berhasil tercatat</Text>
-      <Text style={ds.successText}>NIM {mine.studentId} / {mine.attendanceTime} WIB</Text>
+      <Text style={ds.successText}>NIM {mine.studentNumber} / {mine.attendanceTime} WIB</Text>
     </View> : <>
       <StatusBadge status={session.status === 'Selesai' ? 'Tidak presensi' : 'Belum presensi'} />
       <Text style={ds.subtitle}>{validation.valid ? 'Konfirmasi kehadiranmu satu kali pada sesi ini.' : validation.message}</Text>
     </>}
-    <Button label={mine ? 'Sudah presensi' : 'Presensi sekarang'} disabled={!validation.valid} onPress={() => setConfirming(true)} />
+    <Button label={mine ? 'Sudah presensi' : 'Presensi sekarang'} disabled={!validation.valid || busy || offline || session.deleted} onPress={() => setConfirming(true)} />
     <Modal visible={confirming} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.overlay}>
         <Pressable style={ds.scrim} accessibilityRole="button" accessibilityLabel="Batalkan presensi" onPress={close} />
@@ -40,9 +39,10 @@ export default function StudentAttendanceScreen({ sessionId }: { sessionId: stri
           <ScrollView contentContainerStyle={styles.dialogContent}>
             <Text accessibilityRole="header" style={ds.cardTitle}>Konfirmasi presensi</Text>
             <Text style={ds.subtitle}>{session.practicalName} / {session.className}</Text>
-            <Text style={ds.small}>NIM {state.username} / Status sesi: {session.status}</Text>
+            <Text style={ds.small}>NIM {profile?.nim} / Status sesi: {session.status}</Text>
             <Text style={ds.noticeText} accessibilityLiveRegion="polite">{validation.valid ? 'Catat kehadiran sekarang? Waktu presensi dicatat saat kamu mengonfirmasi.' : validation.message}</Text>
-            <Button label="Ya, catat kehadiran" disabled={!validation.valid} onPress={confirm} />
+            {error ? <Text accessibilityRole="alert" style={ds.loginError}>{error}</Text> : null}
+            <Button label={busy ? 'Menyimpan…' : 'Ya, catat kehadiran'} disabled={!validation.valid || busy || offline || session.deleted} onPress={confirm} />
             <Button label="Batal" variant="secondary" onPress={close} />
           </ScrollView>
         </View>
